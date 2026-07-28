@@ -34,7 +34,7 @@ interface GifcitiesGIF {
     page: string;
 }
 
-// shamefully stolen from Lunascaped's extension and edited to work for gifcities
+// shamefully stolen from Lunascape's extension and edited to work for gifcities
 
 interface DiscordGif {
     id: string;
@@ -61,7 +61,6 @@ function toDiscordGif(item: GifcitiesGIF): DiscordGif | null {
         height: item.height,
         preview: sourceURL // i cant believe you lied to me
     };
-    console.log(dGif);
     return dGif;
 }
 
@@ -111,25 +110,52 @@ export default definePlugin({
         {
             find: "?this.renderEmptyFavorites():(",
             replacement: [
-                // {
-                //     match: /(;\s*)(return\s*\{imagePool:\s*\i,videoPool:\s*)(\i)/,
-                //     replace: "$1 $self.fixDivs($3); $2$3"
-                // },
                 {
-                    match: /(.createElement\(")video("\);return)/,
-                    replace: "$1img$2"
+                    match: /,\[\i\]=(\i)\.useState\(\(\)=>new (\i)\(\(\)=>\{let \i=(\i).createElement\("video"\);return \i.className=(\i\.\i)/,
+                    // $1: main react component
+                    // $2: video pool constructor variable
+                    // $3: element handler thing
+                    // $4: div classname variable
+                    replace: ",[secretThirdEvilPool]=$self.createNewPool($1,$2,$3,$4)$&"
                 },
+                {
+                    match: /(\)\);return\{imagePool:\i,videoPool:\i)}/,
+                    replace: "$1,gifPool:secretThirdEvilPool}"
+                }
             ]
         },
+        {
+            find: "this.props.hideFavoritesTile)",
+            replacement: {
+                match: /(children:\s*\[)\i\s*===\s*\i\.\i\.TRENDING_GIFS/,
+                replace: "$1false"
+            }
+        },
+        {
+            find: "[u.A.unsafe_rawColors.PREMIUM_TIER_1_PURPLE.css,",
+            replacement: [
+                {
+                    match: /(super\(\i\);const\{format:\i,color:\i,imagePool:\i)(\}=this\.props;)/,
+                    replace: "$1,gifPool:gifPool$2"
+                },
+                {
+                    match: /(videoPool:\i)(\},ref:\i\}=this;)/,
+                    replace: "$1,gifPool:gifPool$2"
+                },
+                {
+                    match: /let \i=(\i)\.getElement\(\);(\i)\.oncanplay=this\.handleCanPlay,(\i\.src=(\i),)/,
+                    // $2: src: string, check ending against .gif or .webm and pull element based on that
+                    replace: "let $2=$self.getPoolElement($1,$4);$3"
+                }
+            ]
+        }
     ],
-
-    tempDiv: document.createElement("video"), // storage property to track video div
 
     gifcitiesSearch(query: string) {
         gifcitiesFetch({ q: query, limit: "50" })
             .then(results => {
                 const items = mapToDiscordGifs(results);
-                console.log(items[0].preview); // debugging purposes
+                // console.log(items[0].preview); // debugging purposes
                 FluxDispatcher.dispatch(
                     items.length
                         ? { type: "GIF_PICKER_QUERY_SUCCESS", query, items }
@@ -140,18 +166,27 @@ export default definePlugin({
             });
     },
 
-    // fixDivs(videoPool: any) {
-    //     const elements = videoPool._elements;
-    //     for (let i = 0; i < elements.length; i++) {
-    //         const video = elements[i];
-    //         const img = document.createElement("img");
-    //         img.className = video.className;
-    //         img.width = video.width;
-    //         img.height = video.height;
-    //         img.src = video.src;
+    createNewPool(r: any, poolConstructor: any, elementManager: any, className: string) {
+        const gifPool = r.useState(() => new poolConstructor(() => {
+            const e = elementManager.createElement("img");
+            e.className = className;
+            return e;
+        }));
+        const [temporaryVariableYay] = gifPool;
+        this.gifPoolInstance = temporaryVariableYay;
+        return gifPool;
+    },
 
-    //         this.tempDiv.replaceWith(img);
-    //     }
-    // }
+    getPoolElement(r: any, src: string) {
+        let element: Node[];
+        if (src.endsWith(".gif")) {
+            // pull from gif pool
+            element = this.gifPoolInstance.getElement();
+        }
+        else {
+            // pull from normal video pool
+            element = r.getElement();
+        }
+        return element;
+    }
 });
-
